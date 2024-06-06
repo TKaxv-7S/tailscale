@@ -988,7 +988,11 @@ func (b *LocalBackend) WhoIs(ipp netip.AddrPort) (n tailcfg.NodeView, u tailcfg.
 	if !ok {
 		var ip netip.Addr
 		if ipp.Port() != 0 {
-			ip, ok = b.sys.ProxyMapper().WhoIsIPPort(ipp)
+			// TODO(andrew-d): is this right?
+			ip, ok = b.sys.ProxyMapper().WhoIsIPPort("tcp", ipp)
+			if !ok {
+				ip, ok = b.sys.ProxyMapper().WhoIsIPPort("udp", ipp)
+			}
 		}
 		if !ok {
 			return zero, u, false
