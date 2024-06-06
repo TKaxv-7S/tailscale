@@ -99,12 +99,12 @@ func TestSetPushDeviceToken(t *testing.T) {
 }
 
 type whoIsBackend struct {
-	whoIs    func(ipp netip.AddrPort) (n tailcfg.NodeView, u tailcfg.UserProfile, ok bool)
+	whoIs    func(proto string, ipp netip.AddrPort) (n tailcfg.NodeView, u tailcfg.UserProfile, ok bool)
 	peerCaps map[netip.Addr]tailcfg.PeerCapMap
 }
 
-func (b whoIsBackend) WhoIs(ipp netip.AddrPort) (n tailcfg.NodeView, u tailcfg.UserProfile, ok bool) {
-	return b.whoIs(ipp)
+func (b whoIsBackend) WhoIs(proto string, ipp netip.AddrPort) (n tailcfg.NodeView, u tailcfg.UserProfile, ok bool) {
+	return b.whoIs(proto, ipp)
 }
 
 func (b whoIsBackend) PeerCaps(ip netip.Addr) tailcfg.PeerCapMap {
@@ -122,7 +122,7 @@ func TestWhoIsJustIP(t *testing.T) {
 		rec := httptest.NewRecorder()
 		t.Run(input, func(t *testing.T) {
 			b := whoIsBackend{
-				whoIs: func(ipp netip.AddrPort) (n tailcfg.NodeView, u tailcfg.UserProfile, ok bool) {
+				whoIs: func(proto string, ipp netip.AddrPort) (n tailcfg.NodeView, u tailcfg.UserProfile, ok bool) {
 					if !strings.Contains(input, ":") {
 						want := netip.MustParseAddrPort("100.101.102.103:0")
 						if ipp != want {

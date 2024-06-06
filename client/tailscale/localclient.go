@@ -278,8 +278,21 @@ func decodeJSON[T any](b []byte) (ret T, err error) {
 }
 
 // WhoIs returns the owner of the remoteAddr, which must be an IP or IP:port.
+//
+// For connections proxied by tailscaled, this only looks up the owner for TCP
+// connections; if you need the owner of a UDP connection, use WhoIsProto.
 func (lc *LocalClient) WhoIs(ctx context.Context, remoteAddr string) (*apitype.WhoIsResponse, error) {
 	body, err := lc.get200(ctx, "/localapi/v0/whois?addr="+url.QueryEscape(remoteAddr))
+	if err != nil {
+		return nil, err
+	}
+	return decodeJSON[*apitype.WhoIsResponse](body)
+}
+
+// WhoIsProto returns the owner of the remoteAddr, which must be an IP or
+// IP:port, for the given protocol (tcp or udp).
+func (lc *LocalClient) WhoIsProto(ctx context.Context, proto, remoteAddr string) (*apitype.WhoIsResponse, error) {
+	body, err := lc.get200(ctx, "/localapi/v0/whois?proto="+url.QueryEscape(proto)+"&addr="+url.QueryEscape(remoteAddr))
 	if err != nil {
 		return nil, err
 	}
