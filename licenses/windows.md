@@ -82,6 +82,5 @@ Windows][].  See also the dependencies in the [Tailscale CLI][].
 
 ## Additional Dependencies
 
- - [Nullsoft Scriptable Install System](https://nsis.sourceforge.io/) ([zlib/libpng](https://nsis.sourceforge.io/License))
  - [Wintun](https://www.wintun.net/) ([Prebuilt Binaries License](https://git.zx2c4.com/wintun/tree/prebuilt-binaries-license.txt))
  - [wireguard-windows](https://git.zx2c4.com/wireguard-windows/) ([MIT](https://git.zx2c4.com/wireguard-windows/tree/COPYING))
