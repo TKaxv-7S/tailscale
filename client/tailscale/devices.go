@@ -39,6 +39,7 @@ type Device struct {
 	// It's currently just 1 element, the 100.x.y.z Tailscale IP.
 	Addresses []string `json:"addresses"`
 	DeviceID  string   `json:"id"`
+	NodeID    string   `json:"nodeId"`
 	User      string   `json:"user"`
 	Name      string   `json:"name"`
 	Hostname  string   `json:"hostname"`
