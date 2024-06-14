@@ -438,8 +438,7 @@ func trySU(dlogf logger.Logf, ia incubatorArgs) (handled bool, err error) {
 	}
 
 	dlogf("logging in with %s %q", su, loginArgs)
-	cmd := newCommand(ia.hasTTY, su, loginArgs)
-	return true, cmd.Run()
+	return true, unix.Exec(su, loginArgs, os.Environ())
 }
 
 // findSU attempts to find an su command which supports the -l and -c flags.
