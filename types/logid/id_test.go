@@ -4,9 +4,11 @@
 package logid
 
 import (
+	"math"
 	"testing"
 
 	"tailscale.com/tstest"
+	"tailscale.com/util/must"
 )
 
 func TestIDs(t *testing.T) {
@@ -75,5 +77,89 @@ func TestIDs(t *testing.T) {
 		new(PublicID).UnmarshalText(hexBytes)
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAdd(t *testing.T) {
+	tests := []struct {
+		in   PublicID
+		add  int64
+		want PublicID
+	}{{
+		in:   must.Get(ParsePublicID("0000000000000000000000000000000000000000000000000000000000000000")),
+		add:  0,
+		want: must.Get(ParsePublicID("0000000000000000000000000000000000000000000000000000000000000000")),
+	}, {
+		in:   must.Get(ParsePublicID("0000000000000000000000000000000000000000000000000000000000000000")),
+		add:  1,
+		want: must.Get(ParsePublicID("0000000000000000000000000000000000000000000000000000000000000001")),
+	}, {
+		in:   must.Get(ParsePublicID("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")),
+		add:  1,
+		want: must.Get(ParsePublicID("0000000000000000000000000000000000000000000000000000000000000000")),
+	}, {
+		in:   must.Get(ParsePublicID("0000000000000000000000000000000000000000000000000000000000000000")),
+		add:  -1,
+		want: must.Get(ParsePublicID("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")),
+	}, {
+		in:   must.Get(ParsePublicID("0000000000000000000000000000000000000000000000000000000000000000")),
+		add:  math.MinInt64,
+		want: must.Get(ParsePublicID("ffffffffffffffffffffffffffffffffffffffffffffffff8000000000000000")),
+	}, {
+		in:   must.Get(ParsePublicID("000000000000000000000000000000000000000000000000ffffffffffffffff")),
+		add:  math.MinInt64,
+		want: must.Get(ParsePublicID("0000000000000000000000000000000000000000000000007fffffffffffffff")),
+	}, {
+		in:   must.Get(ParsePublicID("0000000000000000000000000000000000000000000000000000000000000000")),
+		add:  math.MaxInt64,
+		want: must.Get(ParsePublicID("0000000000000000000000000000000000000000000000007fffffffffffffff")),
+	}, {
+		in:   must.Get(ParsePublicID("0000000000000000000000000000000000000000000000007fffffffffffffff")),
+		add:  math.MaxInt64,
+		want: must.Get(ParsePublicID("000000000000000000000000000000000000000000000000fffffffffffffffe")),
+	}, {
+		in:   must.Get(ParsePublicID("000000000000000000000000000000000000000000000000ffffffffffffffff")),
+		add:  1,
+		want: must.Get(ParsePublicID("0000000000000000000000000000000000000000000000010000000000000000")),
+	}, {
+		in:   must.Get(ParsePublicID("00000000000000000000000000000000fffffffffffffffffffffffffffffffe")),
+		add:  3,
+		want: must.Get(ParsePublicID("0000000000000000000000000000000100000000000000000000000000000001")),
+	}, {
+		in:   must.Get(ParsePublicID("0000000000000000fffffffffffffffffffffffffffffffffffffffffffffffd")),
+		add:  5,
+		want: must.Get(ParsePublicID("0000000000000001000000000000000000000000000000000000000000000002")),
+	}, {
+		in:   must.Get(ParsePublicID("fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc")),
+		add:  7,
+		want: must.Get(ParsePublicID("0000000000000000000000000000000000000000000000000000000000000003")),
+	}, {
+		in:   must.Get(ParsePublicID("ffffffffffffffffffffffffffffffffffffffffffffffff0000000000000000")),
+		add:  -1,
+		want: must.Get(ParsePublicID("fffffffffffffffffffffffffffffffffffffffffffffffeffffffffffffffff")),
+	}, {
+		in:   must.Get(ParsePublicID("ffffffffffffffffffffffffffffffff00000000000000000000000000000001")),
+		add:  -3,
+		want: must.Get(ParsePublicID("fffffffffffffffffffffffffffffffefffffffffffffffffffffffffffffffe")),
+	}, {
+		in:   must.Get(ParsePublicID("ffffffffffffffff000000000000000000000000000000000000000000000002")),
+		add:  -5,
+		want: must.Get(ParsePublicID("fffffffffffffffefffffffffffffffffffffffffffffffffffffffffffffffd")),
+	}, {
+		in:   must.Get(ParsePublicID("0000000000000000000000000000000000000000000000000000000000000003")),
+		add:  -7,
+		want: must.Get(ParsePublicID("fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc")),
+	}}
+	for _, tt := range tests {
+		got := tt.in.Add(tt.add)
+		if got != tt.want {
+			t.Errorf("%s.Add(%d):\n\tgot  %s\n\twant %s", tt.in, tt.add, got, tt.want)
+		}
+		if tt.add != math.MinInt64 {
+			got = got.Add(-tt.add)
+			if got != tt.in {
+				t.Errorf("%s.Add(%d):\n\tgot  %s\n\twant %s", tt.want, -tt.add, got, tt.in)
+			}
+		}
 	}
 }
