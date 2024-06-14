@@ -37,10 +37,17 @@ import (
 )
 
 const (
-	CurrentTrack  = ""
 	StableTrack   = "stable"
 	UnstableTrack = "unstable"
 )
+
+var CurrentTrack = func() string {
+	if version.IsUnstableBuild() {
+		return UnstableTrack
+	} else {
+		return StableTrack
+	}
+}()
 
 func versionToTrack(v string) (string, error) {
 	_, rest, ok := strings.Cut(v, ".")
@@ -106,7 +113,7 @@ func (args Arguments) validate() error {
 		return fmt.Errorf("only one of Version(%q) or Track(%q) can be set", args.Version, args.Track)
 	}
 	switch args.Track {
-	case StableTrack, UnstableTrack, CurrentTrack:
+	case StableTrack, UnstableTrack, "":
 		// All valid values.
 	default:
 		return fmt.Errorf("unsupported track %q", args.Track)
@@ -119,11 +126,14 @@ type Updater struct {
 	// Update is a platform-specific method that updates the installation. May be
 	// nil (not all platforms support updates from within Tailscale).
 	Update func() error
+
+	currentVersion string
 }
 
 func NewUpdater(args Arguments) (*Updater, error) {
 	up := Updater{
-		Arguments: args,
+		Arguments:      args,
+		currentVersion: version.Short(),
 	}
 	if up.Stdout == nil {
 		up.Stdout = os.Stdout
@@ -139,18 +149,15 @@ func NewUpdater(args Arguments) (*Updater, error) {
 	if args.ForAutoUpdate && !canAutoUpdate {
 		return nil, errors.ErrUnsupported
 	}
-	if up.Track == CurrentTrack {
-		switch {
-		case up.Version != "":
+	if up.Track == "" {
+		if up.Version != "" {
 			var err error
 			up.Track, err = versionToTrack(args.Version)
 			if err != nil {
 				return nil, err
 			}
-		case version.IsUnstableBuild():
-			up.Track = UnstableTrack
-		default:
-			up.Track = StableTrack
+		} else {
+			up.Track = CurrentTrack
 		}
 	}
 	if up.Arguments.PkgsAddr == "" {
@@ -259,13 +266,16 @@ func Update(args Arguments) error {
 }
 
 func (up *Updater) confirm(ver string) bool {
-	switch cmpver.Compare(version.Short(), ver) {
-	case 0:
-		up.Logf("already running %v version %v; no update needed", up.Track, ver)
-		return false
-	case 1:
-		up.Logf("installed %v version %v is newer than the latest available version %v; no update needed", up.Track, version.Short(), ver)
-		return false
+	// Only check version when we're not switching tracks.
+	if up.Track == "" || up.Track == CurrentTrack {
+		switch cmpver.Compare(up.currentVersion, ver) {
+		case 0:
+			up.Logf("already running %v version %v; no update needed", up.Track, ver)
+			return false
+		case 1:
+			up.Logf("installed %v version %v is newer than the latest available version %v; no update needed", up.Track, up.currentVersion, ver)
+			return false
+		}
 	}
 	if up.Confirm != nil {
 		return up.Confirm(ver)
@@ -880,7 +890,7 @@ func (up *Updater) installMSI(msi string) error {
 			break
 		}
 		up.Logf("Install attempt failed: %v", err)
-		uninstallVersion := version.Short()
+		uninstallVersion := up.currentVersion
 		if v := os.Getenv("TS_DEBUG_UNINSTALL_VERSION"); v != "" {
 			uninstallVersion = v
 		}
@@ -1331,12 +1341,8 @@ func requestedTailscaleVersion(ver, track string) (string, error) {
 // LatestTailscaleVersion returns the latest released version for the given
 // track from pkgs.tailscale.com.
 func LatestTailscaleVersion(track string) (string, error) {
-	if track == CurrentTrack {
-		if version.IsUnstableBuild() {
-			track = UnstableTrack
-		} else {
-			track = StableTrack
-		}
+	if track == "" {
+		track = CurrentTrack
 	}
 
 	latest, err := latestPackages(track)
