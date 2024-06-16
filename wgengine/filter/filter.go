@@ -23,16 +23,17 @@ import (
 	"tailscale.com/types/logger"
 	"tailscale.com/types/views"
 	"tailscale.com/util/mak"
+	"tailscale.com/util/slicesx"
 )
 
 // Filter is a stateful packet filter.
 type Filter struct {
 	logf logger.Logf
-	// local is the set of IPs prefixes that we know to be "local" to
-	// this node. All packets coming in over tailscale must have a
-	// destination within local, regardless of the policy filter
-	// below.
-	local func(netip.Addr) bool
+	// local4 and local6 report whether an IP is "local" to this node, for the
+	// respective address family. All packets coming in over tailscale must have
+	// a destination within local, regardless of the policy filter below.
+	local4 func(netip.Addr) bool
+	local6 func(netip.Addr) bool
 
 	// logIPs is the set of IPs that are allowed to appear in flow
 	// logs. If a packet is to or from an IP not in logIPs, it will
@@ -184,23 +185,27 @@ func New(matches []Match, localNets, logIPs *netipx.IPSet, shareStateWith *Filte
 		}
 	}
 
-	containsFunc := func(s *netipx.IPSet) func(netip.Addr) bool {
-		if s == nil {
-			return tsaddr.FalseContainsIPFunc()
-		}
-		return tsaddr.NewContainsIPFunc(views.SliceOf(s.Prefixes()))
-	}
-
 	f := &Filter{
 		logf:     logf,
 		matches4: matchesFamily(matches, netip.Addr.Is4),
 		matches6: matchesFamily(matches, netip.Addr.Is6),
 		cap4:     capMatchesFunc(matches, netip.Addr.Is4),
 		cap6:     capMatchesFunc(matches, netip.Addr.Is6),
-		local:    containsFunc(localNets),
-		logIPs:   containsFunc(logIPs),
+		local4:   tsaddr.FalseContainsIPFunc(),
+		local6:   tsaddr.FalseContainsIPFunc(),
+		logIPs:   tsaddr.FalseContainsIPFunc(),
 		state:    state,
 	}
+	if localNets != nil {
+		p := localNets.Prefixes()
+		p4, p6 := slicesx.Partition(p, func(p netip.Prefix) bool { return p.Addr().Is4() })
+		f.local4 = tsaddr.NewContainsIPFunc(views.SliceOf(p4))
+		f.local6 = tsaddr.NewContainsIPFunc(views.SliceOf(p6))
+	}
+	if logIPs != nil {
+		f.logIPs = tsaddr.NewContainsIPFunc(views.SliceOf(logIPs.Prefixes()))
+	}
+
 	return f
 }
 
@@ -431,7 +436,7 @@ func (f *Filter) runIn4(q *packet.Parsed) (r Response, why string) {
 	// A compromised peer could try to send us packets for
 	// destinations we didn't explicitly advertise. This check is to
 	// prevent that.
-	if !f.local(q.Dst.Addr()) {
+	if !f.local4(q.Dst.Addr()) {
 		return Drop, "destination not allowed"
 	}
 
@@ -491,7 +496,7 @@ func (f *Filter) runIn6(q *packet.Parsed) (r Response, why string) {
 	// A compromised peer could try to send us packets for
 	// destinations we didn't explicitly advertise. This check is to
 	// prevent that.
-	if !f.local(q.Dst.Addr()) {
+	if !f.local6(q.Dst.Addr()) {
 		return Drop, "destination not allowed"
 	}
 
